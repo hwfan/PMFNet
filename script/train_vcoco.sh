@@ -4,11 +4,11 @@ model_name="e2e_pmf_net_R-50-FPN_1x"
 EXP="final_trainval"
 mkdir -p ./Outputs/e2e_pmfnet_R-50-FPN_1x/${EXP}
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 python -u tools/train_net_step.py --dataset vcoco_trainval \
+CUDA_VISIBLE_DEVICES=0,1 python -u tools/train_net_step.py --dataset vcoco_trainval \
        --cfg configs/baselines/$model_name.yaml \
        --use_precomp_box \
        --vcoco_use_union_feat --lr 4e-2 \
-       --bs 4 --nw 8 --disp_interval 200 \
+       --bs 4 --nw 8 --disp_interval 1 \
        --freeze_at 5 --mlp_head_dim 256 \
        --part_crop_size 5 --use_kps17 \
        --max_iter 12000 --solver_steps 0 6000 8000 \

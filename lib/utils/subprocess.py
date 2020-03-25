@@ -32,12 +32,17 @@ from six.moves import cPickle as pickle
 import yaml
 import numpy as np
 import torch
-
+from threading import Thread
 from core.config import cfg
+from queue import Queue, Empty
 
 logger = logging.getLogger(__name__)
 
-
+def enqueue_output(out, queue, i):
+    for line in iter(out.readline, b''):
+        queue.put((i, line))
+    out.close()
+    
 def process_in_parallel(
         tag, total_range_size, binary, output_dir,
         load_ckpt, load_detectron, net_name, mlp_head_dim, 
@@ -65,12 +70,13 @@ def process_in_parallel(
     else:
         gpu_inds = range(cfg.NUM_GPUS)
     gpu_inds = list(gpu_inds)
+    q = Queue()
     # Run the binary in cfg.NUM_GPUS subprocesses
     for i, gpu_ind in enumerate(gpu_inds):
         start = subinds[i][0]
         end = subinds[i][-1] + 1
         subprocess_env['CUDA_VISIBLE_DEVICES'] = str(gpu_ind)
-        cmd = ('python {binary} --range {start} {end} --cfg {cfg_file} --set {opts} '
+        cmd = ('python -u {binary} --range {start} {end} --cfg {cfg_file} --set {opts} '
                '--output_dir {output_dir}')
         if load_ckpt is not None:
             cmd += ' --load_ckpt {load_ckpt}'
@@ -96,28 +102,49 @@ def process_in_parallel(
             opts=' '.join([shlex_quote(opt) for opt in opts])
         )
         logger.info('{} range command {}: {}'.format(tag, i, cmd))
-        if i == 0:
-            subprocess_stdout = subprocess.PIPE
-        else:
-            filename = os.path.join(
-                output_dir, '%s_range_%s_%s.stdout' % (tag, start, end)
-            )
-            subprocess_stdout = open(filename, 'w')
+        
+        filename = os.path.join(output_dir, '%s_range_%s_%s.stdout' % (tag, start, end))
+        subprocess_filehandle = open(filename, 'w')
         p = subprocess.Popen(
             cmd,
             shell=True,
             env=subprocess_env,
-            stdout=subprocess_stdout,
+            stdout=subprocess.PIPE,#subprocess_stdout,
             stderr=subprocess.STDOUT,
-            bufsize=1
+            bufsize=1,
+            close_fds=True
         )
-        processes.append((i, p, start, end, subprocess_stdout))
+        t = Thread(target=enqueue_output, args=(p.stdout, q, i))
+        t.daemon=True
+        t.start()
+        processes.append((i, p, start, end, subprocess_filehandle))
+        
     # Log output from inference processes and collate their results
+    alive_pool = np.ones(len(processes),dtype=np.int)
     outputs = []
+    while True:
+      if alive_pool.sum() == 0:
+        break
+      try: 
+        i, out = q.get_nowait()
+      except Empty:
+        pass
+      else:
+        # print(alive_pool)
+        print('gpu:', i, out.strip().decode('ascii'))
+        subprocess_filehandle = processes[i][4]
+        subprocess_filehandle.write(str(out, encoding='ascii'))
+        subprocess_filehandle.flush()
+      for id, p, start, end, subprocess_stdout in processes:
+        if p.poll() is not None:
+          alive_pool[id] = 0
+       
+        
     for i, p, start, end, subprocess_stdout in processes:
-        log_subprocess_output(i, p, output_dir, tag, start, end)
-        if isinstance(subprocess_stdout, IOBase):
-            subprocess_stdout.close()
+        # log_subprocess_output(i, p, output_dir, tag, start, end)
+        
+        # if isinstance(subprocess_stdout, IOBase):
+            # subprocess_stdout.close()
         range_file = os.path.join(
             output_dir, '%s_range_%s_%s.pkl' % (tag, start, end)
         )
@@ -125,7 +152,7 @@ def process_in_parallel(
         outputs.append(range_data)
     return outputs
 
-
+'''
 def log_subprocess_output(i, p, output_dir, tag, start, end):
     """Capture the output of each subprocess and log it in the parent process.
     The first subprocess's output is logged in realtime. The output from the
@@ -154,3 +181,4 @@ def log_subprocess_output(i, p, output_dir, tag, start, end):
         with open(outfile, 'r') as f:
             print(''.join(f.readlines()))
     assert ret == 0, 'Range subprocess failed (exit code: {})'.format(ret)
+'''

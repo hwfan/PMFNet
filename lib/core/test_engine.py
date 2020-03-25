@@ -319,8 +319,10 @@ def test_net(
     all_boxes, all_segms, all_keyps, all_hois, all_keyps_vcoco = empty_results(num_classes, num_images)
     timers = defaultdict(Timer)
     all_losses = defaultdict(list)
+    im_detect_timer = Timer()
+    
     for i, entry in enumerate(roidb):
-
+        im_detect_timer.tic()
         if cfg.TEST.PRECOMPUTED_PROPOSALS:
             # The roidb may contain ground-truth rois (for example, if the roidb
             # comes from the training or val split). We only want to evaluate
@@ -357,7 +359,9 @@ def test_net(
         if loss_i['interaction_action_loss'] is not None:
             for k, v in loss_i.items():
                 all_losses[k].append(v)
-
+        im_detect_timer.toc()
+        print('%d / %d , %.3f sec' % (i, num_images, im_detect_timer.diff))
+        
     cfg_yaml = yaml.dump(cfg)
     if ind_range is not None:
         det_name = 'detection_range_%s_%s.pkl' % tuple(ind_range)
