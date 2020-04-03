@@ -76,6 +76,7 @@ def merge_hoi_blobs(hoi_blob_in, blobs_list):
     # support mini-batch
     human_boxes_count = 0
     object_boxes_count = 0
+    # ipdb.set_trace()
     for i in range(len(blobs_list)):
         blob_this_im = blobs_list[i]
         # ensure interaction_*_inds only index correct image's human/target_object feature
@@ -180,7 +181,6 @@ def _sample_human_union_boxes(rois, rois_to_gt_ind, roidb, im_info, batch_idx, k
     :param im_info:
     :return:
     """
-    # ipdb.set_trace()
     # ToDo: cfg file, split model and data file type
     human_rois_num_per_image = int(cfg.VCOCO.HUMAN_NUM_PER_IM) # 16
     object_rois_num_per_image = int(cfg.VCOCO.OBJECT_NUM_PER_IM) # 64
@@ -308,21 +308,21 @@ def _sample_human_union_boxes(rois, rois_to_gt_ind, roidb, im_info, batch_idx, k
             rois[rois_object_inds[triplets_info['object_inds']]][:, 1:]/float(im_info[2]))
 
     return_dict = dict(
-        human_boxes=human_rois,
-        object_boxes=object_rois,
-        union_boxes=triplets_info['union_boxes'],
-        union_mask=union_mask,
-        human_action_labels=human_action_labels,
-        spatial_info=triplets_info['spatial_info'],
-        interaction_human_inds=triplets_info['human_inds'],
-        interaction_object_inds=triplets_info['object_inds'],
-        interaction_action_labels=triplets_info['action_labels'],
-        interaction_affinity=triplets_info['interaction_affinity'].astype(np.int32),
-        part_boxes=part_boxes,
-        flag=flag,
-        gt_union_heatmap=gt_union_heatmap,
-        rescale_kps=rescale_kps,
-        poseconfig=poseconfig
+        human_boxes=human_rois, # humans*5
+        object_boxes=object_rois, # objects*5
+        union_boxes=triplets_info['union_boxes'], # triplets*5
+        union_mask=union_mask, # triplets * 5 {human, object, max(human,object), noise, bias} * 64 * 64
+        human_action_labels=human_action_labels, # humans*26, for agent testing.
+        spatial_info=triplets_info['spatial_info'], # triplets*4, relative location
+        interaction_human_inds=triplets_info['human_inds'], # triplets, triplets-humans
+        interaction_object_inds=triplets_info['object_inds'], # triplets, triplets-objects
+        interaction_action_labels=triplets_info['action_labels'], # triplets*24, HO label
+        interaction_affinity=triplets_info['interaction_affinity'].astype(np.int32), # triplets, aff label
+        part_boxes=part_boxes, # humans*17*5
+        flag=flag, # humans*17 bool->int, is/not visible.
+        gt_union_heatmap=gt_union_heatmap, # triplets*19*64*64, 17 keypoint heatmap + 1 human + 1 object
+        rescale_kps=rescale_kps, # triplets*17*2, rescaled kps(in 64*64 map).
+        poseconfig=poseconfig # triplets*3*64*64, spatial configuration: 1 pose + 1 human + 1 object
     )
 
     return return_dict
@@ -564,13 +564,15 @@ def generate_triplets(rois, rois_human_inds, rois_object_inds, rois_to_gt_ind, g
     action_labels = gt_action_mat[rois_to_gt_ind[rois_human_inds[human_rois_inds]],
                                   rois_to_gt_ind[rois_object_inds[object_rois_inds]]] # (hN' x oN') x 26 x 2
     interaction_action_mask = np.array(cfg.VCOCO.ACTION_MASK).T
+    # ipdb.set_trace()
+    
     # convert to 24-class 
     # action_labels: (hN' x oN') x 24
     # interaction_affinity: (hN' x oN') x 1
     # init_part_attens: (hN' x oN') x 7 x 17 (last dimension is the holistic atten which is all 1)
     action_labels = action_labels[:, np.where(interaction_action_mask > 0)[0], np.where(interaction_action_mask > 0)[1]]
     interaction_affinity = np.any(action_labels.reshape(action_labels.shape[0], -1) > 0, 1)
-
+    # test if there is any interaction.
     # info for training
     union_boxes = box_utils.get_union_box(rois[rois_human_inds[human_rois_inds]][:, 1:],
                                           rois[rois_object_inds[object_rois_inds]][:, 1:])
@@ -579,7 +581,8 @@ def generate_triplets(rois, rois_human_inds, rois_object_inds, rois_to_gt_ind, g
          union_boxes), axis=1)
     relative_location = box_utils.bbox_transform_inv(rois[rois_human_inds[human_rois_inds]][:, 1:],
                                                      rois[rois_object_inds[object_rois_inds]][:, 1:])
-
+    # ipdb.set_trace()
+    
     # sample fg/bg triplets
     fg_triplets_inds = np.where(np.sum(action_labels, axis=1) > 0)[0]
     bg_triplets_inds = np.setdiff1d(np.arange(action_labels.shape[0]), fg_triplets_inds)

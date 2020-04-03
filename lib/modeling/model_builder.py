@@ -1,7 +1,7 @@
 from functools import wraps
 import importlib
 import logging
-
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -85,15 +85,18 @@ class Generalized_RCNN(nn.Module):
         # For cache
         self.mapping_to_detectron = None
         self.orphans_in_detectron = None
-
+        # print(cfg.MODEL.CONV_BODY)
         # Backbone for feature extraction
         self.Conv_Body = get_func(cfg.MODEL.CONV_BODY)()
-
+        # print(self.Conv_Body)
+        # print('rpn fpn rpn_only vcoco_on mask_on keypoints_on')
+        # print(cfg.RPN.RPN_ON, cfg.FPN.FPN_ON, cfg.MODEL.RPN_ONLY, cfg.MODEL.VCOCO_ON, cfg.MODEL.MASK_ON, cfg.MODEL.KEYPOINTS_ON)
+        
         # Region Proposal Network
         if cfg.RPN.RPN_ON:
             self.RPN = rpn_heads.generic_rpn_outputs(
                 self.Conv_Body.dim_out, self.Conv_Body.spatial_scale)
-
+            # print(self.RPN)
         if cfg.FPN.FPN_ON:
             # Only supports case when RPN and ROI min levels are the same
             assert cfg.FPN.RPN_MIN_LEVEL == cfg.FPN.ROI_MIN_LEVEL
@@ -107,19 +110,21 @@ class Generalized_RCNN(nn.Module):
             # Retain only the spatial scales that will be used for RoI heads. `Conv_Body.spatial_scale`
             # may include extra scales that are used for RPN proposals, but not for RoI heads.
             self.Conv_Body.spatial_scale = self.Conv_Body.spatial_scale[-self.num_roi_levels:]
-
+            # print(self.Conv_Body.spatial_scale)
         # BBOX Branch
         if not cfg.MODEL.RPN_ONLY:
             self.Box_Head = get_func(cfg.FAST_RCNN.ROI_BOX_HEAD)(
                 self.RPN.dim_out, self.roi_feature_transform, self.Conv_Body.spatial_scale)
             self.Box_Outs = fast_rcnn_heads.fast_rcnn_outputs(
                 self.Box_Head.dim_out)
-
+            # print(self.Box_Head)
+            # print(self.Box_Outs)
         if cfg.MODEL.VCOCO_ON:
             if cfg.FPN.MULTILEVEL_ROIS:
                 self.hoi_spatial_scale = self.Conv_Body.spatial_scale
             else:
                 self.hoi_spatial_scale = self.Conv_Body.spatial_scale[-1]
+
             self.HOI_Head = HOI(self.Conv_Body.dim_out, self.roi_feature_transform, self.hoi_spatial_scale)
 
         # Mask Branch
@@ -137,7 +142,6 @@ class Generalized_RCNN(nn.Module):
             if getattr(self.Keypoint_Head, 'SHARE_RES5', False):
                 self.Keypoint_Head.share_res5_module(self.Box_Head.res5)
             self.Keypoint_Outs = keypoint_rcnn_heads.keypoint_outputs(self.Keypoint_Head.dim_out)
-
         self._init_modules()
 
     def _init_modules(self):
@@ -298,11 +302,11 @@ class Generalized_RCNN(nn.Module):
                 hoi_blob_out = self.HOI_Head(blob_conv, hoi_blob_in)
 
                 interaction_action_loss, interaction_affinity_loss, \
-                interaction_action_accuray_cls, interaction_affinity_cls = self.HOI_Head.loss(
+                interaction_action_accuracy_cls, interaction_affinity_cls = self.HOI_Head.loss(
                     hoi_blob_out)
 
                 return_dict['losses']['loss_hoi_interaction_action'] = interaction_action_loss
-                return_dict['metrics']['accuracy_interaction_cls'] = interaction_action_accuray_cls
+                return_dict['metrics']['accuracy_interaction_cls'] = interaction_action_accuracy_cls
                 return_dict['losses']['loss_hoi_interaction_affinity'] = interaction_affinity_loss
                 return_dict['metrics']['accuracy_interaction_affinity'] = interaction_affinity_cls
 

@@ -175,10 +175,10 @@ class JsonDataset(object):
                 self._add_vcoco_precomp_bbox_keypoints(entry, precomp_bbox_keypoints)
                 if affinity_mat_filepath is not None:
                     self._add_affinity_mat(entry, affinity_mat)
-
+                
             #print('add precomp box from {}'.format(precomp_filepath))
             print('add precomp keypoints from {}'.format(precomp_bbox_kps_filepath))
-
+        
         if gt:
             # Include ground-truth object annotations
            # cache_filepath = os.path.join(self.cache_path, self.name+'_gt_roidb.pkl')
@@ -205,7 +205,7 @@ class JsonDataset(object):
 
             for entry in roidb:
                 self._add_gt_annotations(entry)
-
+                
 
         if proposal_file is not None:
             # Include proposals from a file
@@ -219,6 +219,7 @@ class JsonDataset(object):
                 format(self.debug_timer.toc(average=False))
             )
         _add_class_assignments(roidb)
+
         return roidb
 
     def _prep_roidb_entry(self, entry):
@@ -714,7 +715,7 @@ def _merge_compute_boxes_into_roidb(roidb, box_list):
             # Record max overlaps with the class of the appropriate gt box
             gt_overlaps[I, gt_classes[argmaxes[I]]] = maxes[I]
             box_to_gt_ind_map[I] = gt_inds[argmaxes[I]]
-
+        # import ipdb; ipdb.set_trace()
         entry['boxes'] = boxes.astype(entry['boxes'].dtype, copy=False)
         entry['box_to_gt_ind_map'] = box_to_gt_ind_map.astype(entry['box_to_gt_ind_map'].dtype, copy=False)
 

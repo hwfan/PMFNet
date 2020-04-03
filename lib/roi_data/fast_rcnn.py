@@ -24,7 +24,7 @@ from __future__ import unicode_literals
 
 import numpy as np
 import numpy.random as npr
-
+import sys
 from core.config import cfg
 import roi_data.keypoint_rcnn
 import roi_data.mask_rcnn

@@ -185,6 +185,14 @@ class PMFNet_Final(nn.Module):
     Human Object Interaction.
     This module including Human-centric branch and Interaction branch of InteractNet.
     """
+    
+    """
+    interaction_fc1_dim_in: human, object, union
+    pose_fc1,2: semantic attention
+    mlp: spatial/pose configuration, attention head
+    pose_fc3,4: spatial/pose configuration, interaction/binary
+    
+    """
     def __init__(self, dim_in, roi_xform_func, spatial_scale):
         super().__init__()
 
@@ -255,12 +263,12 @@ class PMFNet_Final(nn.Module):
         x_human = self.roi_xform(
             x, hoi_blob,
             blob_rois='human_boxes',
-            method=cfg.FAST_RCNN.ROI_XFORM_METHOD,
-            resolution=cfg.FAST_RCNN.ROI_XFORM_RESOLUTION,
-            spatial_scale=self.spatial_scale,
-            sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO
-        )
-
+            method=cfg.FAST_RCNN.ROI_XFORM_METHOD, # 'RoIAlign'
+            resolution=cfg.FAST_RCNN.ROI_XFORM_RESOLUTION, # 7
+            spatial_scale=self.spatial_scale, # 0.25
+            sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO # 2
+        ) # batch_humans*256*7*7
+        
         x_object = self.roi_xform(
             x, hoi_blob,
             blob_rois='object_boxes',
@@ -268,7 +276,7 @@ class PMFNet_Final(nn.Module):
             resolution=cfg.FAST_RCNN.ROI_XFORM_RESOLUTION,
             spatial_scale=self.spatial_scale,
             sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO
-        )
+        ) # batch_objects*256*7*7
 
         x_union = self.roi_xform(
             x, hoi_blob,
@@ -277,36 +285,38 @@ class PMFNet_Final(nn.Module):
             resolution=cfg.FAST_RCNN.ROI_XFORM_RESOLUTION,
             spatial_scale=self.spatial_scale,
             sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO
-        )
-        x_union = x_union.view(x_union.size(0), -1)
-        x_human = x_human.view(x_human.size(0), -1)
-        x_object = x_object.view(x_object.size(0), -1)
+        ) # batch_unions*256*7*7
+        
+        x_union = x_union.view(x_union.size(0), -1) # flatten union, batch_unions*12544
+        x_human = x_human.view(x_human.size(0), -1) # flatten human, batch_humans*12544
+        x_object = x_object.view(x_object.size(0), -1) # flatten object, batch_objects*12544
 
         #x_object2 = x_object2.view(x_object2.size(0), -1)
         # get inds from numpy
         interaction_human_inds = torch.from_numpy(
-            hoi_blob['interaction_human_inds']).long().cuda(device_id)
+            hoi_blob['interaction_human_inds']).long().cuda(device_id) # batch_unions
         interaction_object_inds = torch.from_numpy(
-            hoi_blob['interaction_object_inds']).long().cuda(device_id)
+            hoi_blob['interaction_object_inds']).long().cuda(device_id) # batch_unions
         part_boxes = torch.from_numpy(
-            hoi_blob['part_boxes']).cuda(device_id)
+            hoi_blob['part_boxes']).cuda(device_id) # batch_humans*17*5
 
-        x_human = F.relu(self.human_fc1(x_human[interaction_human_inds]), inplace=True)
-        x_object = F.relu(self.object_fc1(x_object[interaction_object_inds]), inplace=True)
-        x_union = F.relu(self.union_fc1(x_union), inplace=True)
-        x_interaction = torch.cat((x_human, x_object, x_union), dim=1)
+        x_human = F.relu(self.human_fc1(x_human[interaction_human_inds]), inplace=True) # batch_unions*hidden_dim(256)
+        x_object = F.relu(self.object_fc1(x_object[interaction_object_inds]), inplace=True) # batch_unions*hidden_dim(256)
+        x_union = F.relu(self.union_fc1(x_union), inplace=True) # batch_unions*hidden_dim(256)
+        x_interaction = torch.cat((x_human, x_object, x_union), dim=1) # batch_unions*(3*hidden_dim(256))
 
+        
         ## encode the pose information into x_interaction feature
-        kps_pred = hoi_blob['poseconfig']
+        kps_pred = hoi_blob['poseconfig'] # batch_unions*3*64*64
         if isinstance(kps_pred, np.ndarray):
             kps_pred = torch.from_numpy(kps_pred).cuda(device_id)
-        poseconfig = kps_pred.view(kps_pred.size(0), -1)
+        poseconfig = kps_pred.view(kps_pred.size(0), -1) # flatten -> batch_unions*12288
         # x_pose_line = kps_pred.view(kps_pred.size(0), -1)
         x_pose_line = F.relu(self.pose_fc3(poseconfig), inplace=True)
-        x_pose_line = F.relu(self.pose_fc4(x_pose_line), inplace=True)
+        x_pose_line = F.relu(self.pose_fc4(x_pose_line), inplace=True) # batch_unions*hidden_dim(256)
         # x_interaction1 = torch.cat((x_interaction, x_pose_line), dim=1)  ## to get global interaction affinity score
-
-        x_new = torch.cat((x, x_coords), dim=1)
+        # ipdb.set_trace()
+        x_new = torch.cat((x, x_coords), dim=1) # concat the coordinate maps (batch_imgs,hidden_dim+2,H,W)
         # x_new = x
         x_object2 = self.roi_xform(
             x_new, hoi_blob,
@@ -315,39 +325,48 @@ class PMFNet_Final(nn.Module):
             resolution=self.crop_size,
             spatial_scale=self.spatial_scale,
             sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO
-        )
-
+        ) # object feature with coords. (batch_objects,hidden_dim+2,cropsize,cropsize)
+        # (adapt to the scale of pose feature)
+        
         ## pose_attention feature, including part feature and object feature and geometry feature
+        ## flag: if the flag is not valid, its corresponding feature will not be adopted, and we use zero matrix instead.
         x_pose = self.crop_pose_map(x_new, part_boxes, hoi_blob['flag'], self.crop_size)
-        # x_pose = torch.cat((x_pose, x_coords), dim=2) # N x 17 x 258 x 5 x 5
-        x_pose = x_pose[interaction_human_inds]
+        # batch_humans*17*258*5*5
+        
+        # x_pose = torch.cat((x_pose, x_coords), dim=2) 
+        x_pose = x_pose[interaction_human_inds] # batch_unions*17*258*5*5
+        # x_object2 = torch.cat((x_object2, x_object2_coord), dim=1) 
+        x_object2 = x_object2.unsqueeze(dim=1) # batch_objects*1*258*5*5
 
-        # x_object2 = torch.cat((x_object2, x_object2_coord), dim=1) # N x 258 x 5 x 5
-        x_object2 = x_object2.unsqueeze(dim=1) # N x 1 x 258 x 5 x 5
-        # N x 2 x 5 x 5 
 
-        x_object2 = x_object2[interaction_object_inds]
-        center_xy = x_object2[:,:, -2:, 2:3, 2:3] # N x 1 x 2 x 1 x 1
-        x_pose[:, :, -2:] = x_pose[:, :, -2:] - center_xy # N x 1 x 2 x 5 x 5
-        x_object2[:,:,-2:] = x_object2[:,:, -2:] - center_xy # N x 17 x 2 x 5 x 5
-        x_pose = torch.cat((x_pose, x_object2), dim=1) # N x 18 x 258 x 5 x 5
+        x_object2 = x_object2[interaction_object_inds] # batch_unions*1*258*5*5
+        center_xy = x_object2[:,:, -2:, 2:3, 2:3] # object centre, batch_unions*1*2*1*1
+        x_pose[:, :, -2:] = x_pose[:, :, -2:] - center_xy # normalize coord map with object centre for pose patches.
+                                                          # this will get the relative location of pose feature to object.
+        x_object2[:,:,-2:] = x_object2[:,:, -2:] - center_xy # normalize coord map with object centre for object patches.
+        x_pose = torch.cat((x_pose, x_object2), dim=1) # batch_unions*18*258*5*5
         # N x 18 x 256 x 5 x 5
 
-        semantic_atten = F.sigmoid(self.mlp(poseconfig))
-        semantic_atten = semantic_atten.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1) # N x 17 x 1 x 1 x 1
+        semantic_atten = F.sigmoid(self.mlp(poseconfig)) # batch_unions*17, pixel level pose map --> pose feature
+        semantic_atten = semantic_atten.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1) # batch_unions*17*1*1*1
         x_pose_new = torch.zeros(x_pose.shape).cuda(device_id)
-        x_pose_new[:, :17] = x_pose[:, :17] * semantic_atten
-        x_pose_new[:, 17] = x_pose[:, 17]
+        x_pose_new[:, :17] = x_pose[:, :17] * semantic_atten # attention module.
+        x_pose_new[:, 17] = x_pose[:, 17] # no att for object feature.
 
+        
         ## fuse the pose attention information
-        x_pose = x_pose_new.view(x_pose_new.shape[0], -1)
-        x_pose = F.relu(self.pose_fc1(x_pose), inplace=True)
-        x_pose = F.relu(self.pose_fc2(x_pose), inplace=True)
+        x_pose = x_pose_new.view(x_pose_new.shape[0], -1) # reshape to feature.
+        x_pose = F.relu(self.pose_fc1(x_pose), inplace=True) 
+        x_pose = F.relu(self.pose_fc2(x_pose), inplace=True) # batch_unions*(2*hidden_dim)
+        # x_pose : pose_map * pose feature. ==> attention strengthened pose feature. ==> zoom in, batch_unions*(2*hidden_dim)
+        # x_pose_line : pose_map ==> holistic, batch_unions*hidden_dim(256)
+        # x_interaction: human + object + union ==> holistic, batch_unions*(3*hidden_dim(256))
         x_interaction = torch.cat((x_interaction, x_pose, x_pose_line), dim=1)
-        interaction_affinity_score = self.global_affinity(x_interaction)
+        # final x_interaction: batch_unions*(6*hidden_dim(256))
+        interaction_affinity_score = self.global_affinity(x_interaction) # batch_unions*1
 
         x_interaction = F.relu(self.interaction_fc1(x_interaction), inplace=True)
-        interaction_action_score = self.interaction_action_score(x_interaction)
+        interaction_action_score = self.interaction_action_score(x_interaction) # batch_unions*actions
 
         hoi_blob['interaction_action_score'] = interaction_action_score  ### multi classification score
         hoi_blob['interaction_affinity_score']= interaction_affinity_score ### binary classisification score
@@ -376,16 +395,19 @@ class PMFNet_Final(nn.Module):
         interaction_action_labels = torch.from_numpy(hoi_blob['interaction_action_labels']).float().cuda(device_id)
         interaction_action_preds = \
             (interaction_action_score.sigmoid() > cfg.VCOCO.ACTION_THRESH).type_as(interaction_action_labels)
-
+        # if score > thresh, the corresponding preds are set true.
+        # according to the curve of sigmoid, most scores may be around 0.
         interaction_action_loss = F.binary_cross_entropy_with_logits(
             interaction_action_score, interaction_action_labels, size_average=True)
 
-        interaction_action_accuray_cls = interaction_action_preds.eq(interaction_action_labels).float().mean()
+        interaction_action_accuracy_cls = interaction_action_preds.eq(interaction_action_labels).float().mean()
         interaction_affinity_label = torch.from_numpy(hoi_blob['interaction_affinity'].astype(np.float32)).cuda(
             device_id)
         # interaction_affinity_loss = F.cross_entropy(
         #     interaction_affinity_score, interaction_affinity_label)
         # interaction_affinity_preds = (interaction_affinity[:,1]>interaction_affinity[:,0]).type_as(interaction_affinity_label)
+        
+        # AFF_WEIGHT = 0.1
         interaction_affinity_loss = cfg.VCOCO.AFFINITY_WEIGHT * F.binary_cross_entropy_with_logits(
             interaction_affinity_score, interaction_affinity_label.unsqueeze(1), size_average=True)
         interaction_affinity_preds = (interaction_affinity_score.sigmoid() > cfg.VCOCO.ACTION_THRESH).type_as(
@@ -393,7 +415,7 @@ class PMFNet_Final(nn.Module):
         interaction_affinity_cls = interaction_affinity_preds.eq(interaction_affinity_label).float().mean()
 
         return interaction_action_loss, interaction_affinity_loss, \
-               interaction_action_accuray_cls, interaction_affinity_cls
+               interaction_action_accuracy_cls, interaction_affinity_cls
 
 
 class PMFNet_Final_bak(nn.Module):

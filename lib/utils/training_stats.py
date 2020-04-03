@@ -69,6 +69,7 @@ class TrainingStats(object):
 
     def UpdateIterStats(self, model_out, inner_iter=None):
         """Update tracked iteration statistics."""
+        # import ipdb; ipdb.set_trace()
         if inner_iter is not None and self.misc_args.iter_size > 1:
             # For the case of using args.iter_size > 1
             return self._UpdateIterStats_inner(model_out, inner_iter)
@@ -82,25 +83,25 @@ class TrainingStats(object):
         for k, loss in model_out['losses'].items():
             assert loss.shape[0] == cfg.NUM_GPUS
             loss = loss.mean(dim=0, keepdim=True)
-            total_loss += loss
-            loss_data = loss.data[0]
-            model_out['losses'][k] = loss
+            total_loss += loss 
+            loss_data = loss.data[0] 
+            model_out['losses'][k] = loss # model_out with grad. Average each loss... Why do this?
             if cfg.FPN.FPN_ON:
                 if k.startswith('loss_rpn_cls_'):
                     loss_rpn_cls_data += loss_data
                 elif k.startswith('loss_rpn_bbox_'):
                     loss_rpn_bbox_data += loss_data
-            self.smoothed_losses[k].AddValue(loss_data)
+            self.smoothed_losses[k].AddValue(loss_data) # SmoothedValue should have no grad.
 
-        model_out['total_loss'] = total_loss  # Add the total loss for back propagation
-        self.smoothed_total_loss.AddValue(total_loss.data[0])
+        model_out['total_loss'] = total_loss  # model_out with grad. Add the total loss for back propagation
+        self.smoothed_total_loss.AddValue(total_loss.data[0]) # SmoothedValue should have no grad.
         if cfg.FPN.FPN_ON:
             self.smoothed_losses['loss_rpn_cls'].AddValue(loss_rpn_cls_data)
             self.smoothed_losses['loss_rpn_bbox'].AddValue(loss_rpn_bbox_data)
 
         for k, metric in model_out['metrics'].items():
             metric = metric.mean(dim=0, keepdim=True)
-            self.smoothed_metrics[k].AddValue(metric.data[0])
+            self.smoothed_metrics[k].AddValue(metric.data[0]) # SmoothedValue should have no grad.
 
     def _UpdateIterStats_inner(self, model_out, inner_iter):
         """Update tracked iteration statistics for the case of iter_size > 1"""
@@ -194,7 +195,7 @@ class TrainingStats(object):
 
     def GetStats(self, cur_iter, lr):
         eta_seconds = self.iter_timer.average_time * (
-            cfg.SOLVER.MAX_ITER - cur_iter
+            cfg.SOLVER.MAX_ITER - (cur_iter+1)
         )
         eta = str(datetime.timedelta(seconds=int(eta_seconds)))
         stats = OrderedDict(

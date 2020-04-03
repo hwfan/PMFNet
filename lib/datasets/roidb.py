@@ -23,7 +23,7 @@ from __future__ import unicode_literals
 import six
 import logging
 import numpy as np
-
+import sys
 import utils.boxes as box_utils
 import utils.keypoints as keypoint_utils
 import utils.segms as segm_utils
@@ -79,6 +79,10 @@ def combined_roidb_for_training(dataset_names, proposal_files):
     logger.info('done')
 
     _compute_and_log_stats(roidb)
+    # for each in roidb[0].keys():
+      # if not each == 'image':
+        # print(each, roidb[0][each])
+    # sys.exit('')
 
     return roidb, ratio_list, ratio_index
 
@@ -263,22 +267,30 @@ def _compute_targets(entry):
 
     # Indices of examples for which we try to make predictions
     ex_inds = np.where(overlaps >= cfg.TRAIN.BBOX_THRESH)[0]
-
+    # print('overlaps', overlaps)
+    # print('ex', ex_inds)
+    # print('gt', gt_inds)
+    
     # Get IoU overlap between each ex ROI and gt ROI
     ex_gt_overlaps = box_utils.bbox_overlaps(
         rois[ex_inds, :].astype(dtype=np.float32, copy=False),
         rois[gt_inds, :].astype(dtype=np.float32, copy=False))
-
+    # print('ex_gt_ov', ex_gt_overlaps)
+    
     # Find which gt ROI each ex ROI has max overlap with:
     # this will be the ex ROI's gt target
     gt_assignment = ex_gt_overlaps.argmax(axis=1)
     gt_rois = rois[gt_inds[gt_assignment], :]
     ex_rois = rois[ex_inds, :]
+    # print('gt_rois', gt_rois)
+    # print('ex_rois', ex_rois)
     # Use class "1" for all boxes if using class_agnostic_bbox_reg
     targets[ex_inds, 0] = (
         1 if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG else labels[ex_inds])
     targets[ex_inds, 1:] = box_utils.bbox_transform_inv(
         ex_rois, gt_rois, cfg.MODEL.BBOX_REG_WEIGHTS)
+    # print('targets', targets)
+    # sys.exit()
     return targets
 
 

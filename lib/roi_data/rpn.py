@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import numpy.random as npr
-
+import sys
 from core.config import cfg
 import roi_data.data_utils as data_utils
 import utils.blob as blob_utils
@@ -57,7 +57,7 @@ def add_rpn_blobs(blobs, im_scales, roidb):
         foa = data_utils.get_field_of_anchors(cfg.RPN.STRIDE, cfg.RPN.SIZES,
                                               cfg.RPN.ASPECT_RATIOS)
         all_anchors = foa.field_of_anchors
-
+    # print(all_anchors)
     for im_i, entry in enumerate(roidb):
         scale = im_scales[im_i]
         im_height = np.round(entry['height'] * scale)

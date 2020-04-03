@@ -289,7 +289,8 @@ def test_net(
         ind_range=None,
         gpu_id=0,
         active_model=None,
-        step=None):
+        step=None,
+        report_period=1):
     """Run inference on all images in a dataset or over an index range of images
     in a dataset using a single GPU.
     """
@@ -360,7 +361,8 @@ def test_net(
             for k, v in loss_i.items():
                 all_losses[k].append(v)
         im_detect_timer.toc()
-        print('%d / %d , %.3f sec' % (i, num_images, im_detect_timer.diff))
+        if (i+1) % report_period == 0:
+          print('%d / %d, %.3f sec' % (i+1, num_images, im_detect_timer.average_time))
         
     cfg_yaml = yaml.dump(cfg)
     if ind_range is not None:

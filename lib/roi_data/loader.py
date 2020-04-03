@@ -1,7 +1,7 @@
 import math
 import numpy as np
 import numpy.random as npr
-
+import sys
 import torch
 import torch.utils.data as data
 import torch.utils.data.sampler as torch_sampler
@@ -20,6 +20,17 @@ class RoiDataLoader(data.Dataset):
         self._num_classes = num_classes
         self.training = training
         self.DATA_SIZE = len(self._roidb)
+        # list_blobs = []
+        # for id in range(2):
+          # data_test, _ = get_minibatch([self._roidb[id]])
+          # blobs = data_test
+          # for key in blobs:
+              # if key != 'roidb':
+                  # blobs[key] = blobs[key].squeeze(axis=0)
+          # blobs['roidb'] = blob_utils.serialize(blobs['roidb'])
+          # list_blobs.append(blobs)
+        # collate_minibatch(list_blobs)
+        # sys.exit()
 
     def __getitem__(self, index_tuple):
         index, ratio = index_tuple
@@ -211,7 +222,6 @@ class BatchSampler(torch_sampler.BatchSampler):
         self.sampler = sampler
         self.batch_size = batch_size
         self.drop_last = drop_last
-
     def __iter__(self):
         batch = []
         for idx in self.sampler:
@@ -239,6 +249,8 @@ def collate_minibatch(list_of_blobs):
     # Because roidb consists of entries of variable length, it can't be batch into a tensor.
     # So we keep roidb in the type of "list of ndarray".
     list_of_roidb = [blobs.pop('roidb') for blobs in list_of_blobs]
+    # for each in list_of_roidb:
+      # print(len(each))
     for i in range(0, len(list_of_blobs), cfg.TRAIN.IMS_PER_BATCH):
         mini_list = list_of_blobs[i:(i + cfg.TRAIN.IMS_PER_BATCH)]
         # Pad image data

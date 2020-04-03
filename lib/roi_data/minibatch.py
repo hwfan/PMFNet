@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-
+import sys
 from core.config import cfg
 import utils.blob as blob_utils
 import roi_data.rpn

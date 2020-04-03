@@ -208,6 +208,7 @@ def update_learning_rate(optimizer, cur_lr, new_lr):
                 param_group['lr'] = param_group['lr'] * 2.
 
             param_keys += param_group['params']
+        # import ipdb; ipdb.set_trace()
         if cfg.SOLVER.TYPE in ['SGD'] and cfg.SOLVER.SCALE_MOMENTUM and cur_lr > 1e-7 and \
                 ratio > cfg.SOLVER.SCALE_MOMENTUM_THRESHOLD:
             _CorrectMomentum(optimizer, param_keys, new_lr / cur_lr)

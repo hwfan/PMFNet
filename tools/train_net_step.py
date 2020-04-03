@@ -114,6 +114,22 @@ def parse_args():
         '--snapshot', help='default snapshot interval',
         default=1000, type=int)
     parser.add_argument(
+        '--test_report_period',
+        help='test report period.',
+        default=200, type=int)
+    parser.add_argument(
+        '--ckpt_period',
+        help='checkpoint saving period.',
+        default=2000, type=int)
+    parser.add_argument(
+        '--ckpt_start',
+        help='checkpoint saving start point.',
+        default=15000, type=int)
+    parser.add_argument(
+        '--test_iter_period',
+        help='checkpoint saving period.',
+        default=8000, type=int)
+    parser.add_argument(
         '--triplets_num_per_im', help='default snapshot interval',
         default=16, type=int)
     parser.add_argument(
@@ -180,7 +196,7 @@ def parse_args():
     parser.add_argument(
         '--expID', default='default', help='experiment id')
     parser.add_argument(
-        '--expDir', default='exp', help='experiment dir')
+        '--expDir', default='experiments', help='experiment dir')
     parser.add_argument(
         '--vcoco_use_spatial', help='vcoco keypoint multi task',
         action='store_true')
@@ -314,7 +330,6 @@ def main():
         cfg.VCOCO.USE_PRECOMP_BOX = True
 
     cfg.DEBUG_TEST_WITH_GT = True
-
     if args.lr is not None:
         cfg.SOLVER.BASE_LR = args.lr
     ### Adaptively adjust some configs ###
@@ -327,6 +342,13 @@ def main():
     assert (args.batch_size % cfg.NUM_GPUS) == 0, \
         'batch_size: %d, NUM_GPUS: %d' % (args.batch_size, cfg.NUM_GPUS)
     cfg.TRAIN.IMS_PER_BATCH = args.batch_size // cfg.NUM_GPUS
+    '''
+    what is iter_size for?
+    itersize: per x iters to update
+    default : batchsize=4, itersize=1 -> effective_batch_size=4
+    ims_per_batch = batchsize/gpu = 4/2 = 2. 
+    
+    '''
     effective_batch_size = args.iter_size * args.batch_size
     print('effective_batch_size = batch_size * iter_size = %d * %d' % (args.batch_size, args.iter_size))
 
@@ -342,7 +364,9 @@ def main():
     cfg.SOLVER.BASE_LR *= args.batch_size / original_batch_size
     print('Adjust BASE_LR linearly according to batch_size change:\n'
           '    BASE_LR: {} --> {}'.format(old_base_lr, cfg.SOLVER.BASE_LR))
-
+    '''
+    step should be lengthen due to the shrink of bs.
+    '''
     ### Adjust solver steps
     step_scale = original_batch_size / effective_batch_size
     old_solver_steps = cfg.SOLVER.STEPS
@@ -388,7 +412,9 @@ def main():
     roidb_size = len(roidb)
     logger.info('{:d} roidb entries'.format(roidb_size))
     logger.info('Takes %.2f sec(s) to construct roidb', timers['roidb'].average_time)
-
+    
+    print('data length:', len(ratio_index))
+   
     # Effective training sample size for one epoch
     train_size = roidb_size // args.batch_size * args.batch_size
     # ToDo: shuffle?
@@ -396,7 +422,6 @@ def main():
         sampler=MinibatchSampler(ratio_list, ratio_index),
         batch_size=args.batch_size,
         drop_last=True)
-
     dataset = RoiDataLoader(
         roidb,
         cfg.MODEL.NUM_CLASSES,
@@ -481,7 +506,8 @@ def main():
          'lr': 0 * (cfg.SOLVER.BIAS_DOUBLE_LR + 1) * cfg.SOLVER.FASTER_RCNN_WEIGHT,
          'weight_decay': cfg.SOLVER.WEIGHT_DECAY if cfg.SOLVER.BIAS_WEIGHT_DECAY else 0},
     ]
-
+    # bias doesn't have weight decay..
+    # basic lr is 0.
     if cfg.SOLVER.TYPE == "SGD":
         optimizer = torch.optim.SGD(params, momentum=cfg.SOLVER.MOMENTUM)
     elif cfg.SOLVER.TYPE == "Adam":
@@ -525,7 +551,7 @@ def main():
                                  minibatch=True)
 
     ### Training Setups ###
-    args.run_name = misc_utils.get_run_name() + '_step'
+    # args.run_name = misc_utils.get_run_name() + '_step'
     #output_dir = misc_utils.get_output_dir(args, args.run_name)
     output_dir = os.path.join('Outputs', args.expDir, args.expID)
     os.makedirs(output_dir, exist_ok=True)
@@ -558,7 +584,7 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
     CHECKPOINT_PERIOD = cfg.TRAIN.SNAPSHOT_ITERS
 
     # Set index for decay steps
-    decay_steps_ind = None
+    decay_steps_ind = None # next decay step.
     for i in range(1, len(cfg.SOLVER.STEPS)):
         if cfg.SOLVER.STEPS[i] >= args.start_step:
             decay_steps_ind = i
@@ -572,7 +598,7 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
         tblogger if args.use_tfboard and not args.no_save else None)
 
     try:
-        logger.info('Training starts !')
+        logger.info('Training starts!')
         step = args.start_step
 
         best_ap = 0
@@ -597,6 +623,7 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
                 lr = optimizer.param_groups[0]['lr']
                 assert lr == lr_new
             elif step == cfg.SOLVER.WARM_UP_ITERS:
+                # ipdb.set_trace()
                 net_utils.update_learning_rate(optimizer, lr, cfg.SOLVER.BASE_LR)
                 lr = optimizer.param_groups[0]['lr']
                 assert lr == cfg.SOLVER.BASE_LR
@@ -629,7 +656,7 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
                 training_stats.UpdateIterStats(net_outputs, inner_iter)
                 loss = net_outputs['total_loss']
                 #print('555')
-                running_tr_loss += loss.item()
+                # running_tr_loss += loss.item()
                 if loss.requires_grad:
                     loss.backward()
 
@@ -643,11 +670,17 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
             #     tblogger.add_scalar('Runing_Training_loss', running_tr_loss/(step+1-DRAW_STEP), step+1)
             #     DRAW_STEP = step+1
             #     running_tr_loss = 0.
-
-            CHECKPOINT_PERIOD = 2000
-            if ((step+1) % CHECKPOINT_PERIOD == 0) or step==cfg.SOLVER.MAX_ITER-1:
-                if(step+1)>15000:
-                    save_ckpt(output_dir, args, step, train_size, model, optimizer)
+            
+            CHECKPOINT_PERIOD = args.ckpt_period
+            TEST_PERIOD = args.test_iter_period
+            if(step+1)>args.ckpt_start:
+              if ((step+1) % CHECKPOINT_PERIOD == 0) or step==cfg.SOLVER.MAX_ITER-1:
+                save_ckpt(output_dir, args, step, train_size, model, optimizer)
+              if ((step+1) % TEST_PERIOD == 0) or step==cfg.SOLVER.MAX_ITER-1:
+                val(model, output_dir, step, args.test_report_period, 'test')
+            elif step == args.start_step:
+              val(model, output_dir, step, args.test_report_period, 'test')
+            
 
         # ---- Training ends ----
         # Save last checkpoint
@@ -666,7 +699,7 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
             tblogger.close()
 
 
-def val(model, root_dir, step, mode='val'):
+def val(model, root_dir, step, report_period, mode='val'):
     if mode == 'train':
         dataset_name = 'vcoco_train'
     elif mode == 'val':
@@ -689,7 +722,7 @@ def val(model, root_dir, step, mode='val'):
     ## all_hois here includes several outputs
     all_boxes, all_segms, all_keyps, all_hois, all_keyps_vcoco, all_losses \
         = test_net(args=None, dataset_name=dataset_name, proposal_file=None,
-                   output_dir=output_dir, active_model=model, step=step)
+                   output_dir=output_dir, active_model=model, step=step, report_period=report_period)
 
     # pos_acc, neg_acc, AP, total_action_num, recall_action_num, \
     #     total_affinity_num, recall_affinity_num = evaluate_affinity(all_losses, thresh=0.5)
