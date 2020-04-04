@@ -435,7 +435,8 @@ class Generalized_RCNN(nn.Module):
     def hoi_net(self, blob_conv, hoi_blob, kps_pred, union_mask=None):
         """For inference"""
         #blob_conv, hoi_blob_in, vcoco_heatmaps, union_mask
-        hoi_pred = self.HOI_Head(blob_conv, hoi_blob)
+        with torch.no_grad():
+          hoi_pred = self.HOI_Head(blob_conv, hoi_blob)
         return hoi_pred
 
     @property

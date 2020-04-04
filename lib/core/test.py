@@ -204,7 +204,7 @@ def im_conv_body_only(model, im, target_scale, target_max_size):
     else:
         inputs['data'] = torch.from_numpy(inputs['data']).cuda()
     inputs.pop('im_info')
-
+    
     blob_conv = model.module.convbody_net(**inputs)
 
     return blob_conv, im_scale

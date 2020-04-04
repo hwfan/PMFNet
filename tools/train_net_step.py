@@ -547,6 +547,7 @@ def main():
 
     lr = optimizer.param_groups[0]['lr']  # lr of non-bias parameters, for commmand line outputs.
 
+    
     maskRCNN = mynn.DataParallel(maskRCNN, cpu_keywords=['im_info', 'roidb'],
                                  minibatch=True)
 
@@ -700,6 +701,7 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
 
 
 def val(model, root_dir, step, report_period, mode='val'):
+  
     if mode == 'train':
         dataset_name = 'vcoco_train'
     elif mode == 'val':
@@ -709,10 +711,9 @@ def val(model, root_dir, step, report_period, mode='val'):
 
     logger.info("start test {}_set while training".format(mode))
     model.eval()
-
-    ids_back = model.device_ids
-    model.device_ids = [0]
-
+    # ids_back = model.device_ids
+    # model.device_ids = [1]
+    model.output_device=1
     output_dir = os.path.join(root_dir, mode)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -731,10 +732,8 @@ def val(model, root_dir, step, report_period, mode='val'):
     # print('total_affinity_num:{}, recall_affinity_num:{}, affinity_recall:{}'.format(total_affinity_num, recall_affinity_num, recall_affinity_num/total_affinity_num))
 
     interaction_cls_loss = dict()
-
     interaction_action_loss_list = all_losses['interaction_action_loss']
     val_interaction_action_loss = sum(interaction_action_loss_list)/len(interaction_action_loss_list)
-
     interaction_affinity_loss_list = all_losses['interaction_affinity_loss']
     val_interaction_affinity_loss = sum(interaction_affinity_loss_list)/len(interaction_affinity_loss_list)
 
@@ -746,8 +745,6 @@ def val(model, root_dir, step, report_period, mode='val'):
     hois_keys_roidb = list(all_hois.keys())
     all_hois_3 = dict()
     all_hois_13 = dict()
-    all_hois_23 = dict()
-    all_hois_123 = dict()
 
     for roidb_id in hois_keys_roidb:
         multi_hois = all_hois[roidb_id]
@@ -758,14 +755,8 @@ def val(model, root_dir, step, report_period, mode='val'):
         all_hois_13[roidb_id] = dict(agents=multi_hois['agents'],
                                     roles=multi_hois['roles1'])
 
-        all_hois_23[roidb_id] = dict(agents=multi_hois['agents'],
-                                    roles=multi_hois['roles2'])
 
-        all_hois_123[roidb_id] = dict(agents=multi_hois['agents'],
-                                    roles=multi_hois['roles3'])
-
-
-    hois_list = [all_hois_3, all_hois_13, all_hois_23, all_hois_123]
+    hois_list = [all_hois_3, all_hois_13]
     role_ap_list = []
 
     for idx, hoi_step in enumerate(hois_list):
@@ -774,8 +765,8 @@ def val(model, root_dir, step, report_period, mode='val'):
             os.makedirs(output_dir_step)
         role_ap = task_evaluation.evaluate_hoi_vcoco(dataset, hoi_step, output_dir_step)
         role_ap_list.append(role_ap)
-
-    model.device_ids = ids_back
+    model.output_device=0
+    # model.device_ids = ids_back
     model.train()
 
     return role_ap_list, interaction_cls_loss

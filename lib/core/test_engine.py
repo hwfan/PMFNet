@@ -363,7 +363,8 @@ def test_net(
         im_detect_timer.toc()
         if (i+1) % report_period == 0:
           print('%d / %d, %.3f sec' % (i+1, num_images, im_detect_timer.average_time))
-        
+        if active_model is not None:
+          torch.cuda.empty_cache()
     cfg_yaml = yaml.dump(cfg)
     if ind_range is not None:
         det_name = 'detection_range_%s_%s.pkl' % tuple(ind_range)

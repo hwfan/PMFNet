@@ -349,10 +349,19 @@ class PMFNet_Final(nn.Module):
 
         semantic_atten = F.sigmoid(self.mlp(poseconfig)) # batch_unions*17, pixel level pose map --> pose feature
         semantic_atten = semantic_atten.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1) # batch_unions*17*1*1*1
-        x_pose_new = torch.zeros(x_pose.shape).cuda(device_id)
-        x_pose_new[:, :17] = x_pose[:, :17] * semantic_atten # attention module.
-        x_pose_new[:, 17] = x_pose[:, 17] # no att for object feature.
-
+        # ipdb.set_trace()
+        atten_shape = list(tuple(semantic_atten.shape))
+        atten_shape[1] = 1
+        atten_shape = tuple(atten_shape)
+        atten_ones = torch.ones(atten_shape).cuda(device_id)
+        
+        semantic_atten = torch.cat((semantic_atten,atten_ones),dim=1)
+        x_pose_new = x_pose * semantic_atten
+        # x_pose_new = torch.zeros(x_pose.shape).cuda(device_id)
+        
+        # x_pose_new[:, :17] = x_pose[:, :17] * semantic_atten # attention module.
+        # x_pose_new[:, 17] = x_pose[:, 17] # no att for object feature.
+        
         
         ## fuse the pose attention information
         x_pose = x_pose_new.view(x_pose_new.shape[0], -1) # reshape to feature.
