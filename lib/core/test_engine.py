@@ -361,7 +361,7 @@ def test_net(
             for k, v in loss_i.items():
                 all_losses[k].append(v)
         im_detect_timer.toc()
-        if (i+1) % report_period == 0:
+        if (i+1) % report_period == 0 or (i+1) == num_images:
           print('%d / %d, %.3f sec' % (i+1, num_images, im_detect_timer.average_time))
         if active_model is not None:
           torch.cuda.empty_cache()
