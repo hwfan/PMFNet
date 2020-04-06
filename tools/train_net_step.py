@@ -167,7 +167,17 @@ def parse_args():
         '--resume',
         help='resume to training on a checkpoint',
         action='store_true')
-
+        
+    parser.add_argument(
+        '--test_train', help='test the model in training',
+        action='store_true')
+    parser.add_argument(
+        '--test_start', help='test the model in the start of training',
+        action='store_true')
+    parser.add_argument(
+        '--test_end', help='test the model in the end of training',
+        action='store_true')
+        
     parser.add_argument(
         '--no_save', help='do not save anything', action='store_true')
 
@@ -675,11 +685,11 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
             CHECKPOINT_PERIOD = args.ckpt_period
             TEST_PERIOD = args.test_iter_period
             if(step+1)>args.ckpt_start:
-              if ((step+1) % CHECKPOINT_PERIOD == 0) or step==cfg.SOLVER.MAX_ITER-1:
+              if ((step+1) % CHECKPOINT_PERIOD == 0) or step==(cfg.SOLVER.MAX_ITER-1):
                 save_ckpt(output_dir, args, step, train_size, model, optimizer)
-              if ((step+1) % TEST_PERIOD == 0) or step==cfg.SOLVER.MAX_ITER-1:
+              if (args.test_train and ((step+1) % TEST_PERIOD == 0)) or (test_end and step==(cfg.SOLVER.MAX_ITER-1)):
                 val(model, output_dir, step, args.test_report_period, 'test')
-            elif step == args.start_step and not step == 0:
+            elif args.test_start and step == args.start_step:
               val(model, output_dir, step, args.test_report_period, 'test')
             
 

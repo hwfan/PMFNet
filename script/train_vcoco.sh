@@ -5,6 +5,7 @@ EXP="DEBUG"
 mkdir -p ./Outputs/logs/${EXP}
 
 CUDA_VISIBLE_DEVICES=0,1 python -u tools/train_net_step.py --dataset vcoco_trainval \
+       --test_end \
        --cfg configs/baselines/$model_name.yaml \
        --use_precomp_box \
        --vcoco_use_union_feat --lr 4e-2 \
