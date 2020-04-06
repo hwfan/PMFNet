@@ -139,6 +139,9 @@ def parse_args():
         '--part_crop_size', help='default part crop size of union feature map',
         default=7, type=int)
     parser.add_argument(
+        '--pan_iter', help='iters of Pose Aggregation Network',
+        default=2, type=int)
+    parser.add_argument(
         '--use_heatmap2', help='whether use heatmap 2 ',
         action='store_true')
     parser.add_argument(
@@ -322,6 +325,7 @@ def main():
     cfg.VCOCO.PART_CROP_SIZE=args.part_crop_size
     print('part_crop_size: ', cfg.VCOCO.PART_CROP_SIZE)
 
+
     print('use use_kps17 for part Align: ', args.use_kps17)
     if args.use_kps17:
         cfg.VCOCO.USE_KPS17 = True
@@ -330,6 +334,12 @@ def main():
 
     print('MULTILEVEL_ROIS: ', cfg.FPN.MULTILEVEL_ROIS)
 
+    print('='*60)
+    print('PGE PARAMS:')
+    if args.pan_iter > 0:
+      print('PAN ITER:', args.pan_iter)
+      cfg.PGE.PAN_ITER = args.pan_iter
+    print('='*60)
     if args.vcoco_use_spatial:
         cfg.VCOCO.USE_SPATIAL = True
 

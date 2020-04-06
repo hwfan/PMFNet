@@ -1016,7 +1016,7 @@ __C.VCOCO.COARSE_ACTION_NUM = 4
 __C.VCOCO.TEST_HUMAN_SCORE_THRESH = 0.5
 __C.VCOCO.TEST_TARGET_OBJECT_SCORE_THRESH = 0.4
 
-
+__C.PGE = AttrDict()
 # ---------------------------------------------------------------------------- #
 # GroupNorm options
 # ---------------------------------------------------------------------------- #

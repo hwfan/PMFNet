@@ -81,7 +81,8 @@ class Generalized_RCNN(nn.Module):
             from modeling.hoi import PMFNet_Baseline as HOI 
         elif cfg.NETWORK_NAME == 'PMFNet_Final':
             from modeling.hoi import PMFNet_Final as HOI
-
+        elif cfg.NETWORK_NAME == 'PGE':
+            from modeling.hoi import PGE as HOI
         # For cache
         self.mapping_to_detectron = None
         self.orphans_in_detectron = None
