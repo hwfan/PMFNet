@@ -697,7 +697,7 @@ def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tb
             if(step+1)>args.ckpt_start:
               if ((step+1) % CHECKPOINT_PERIOD == 0) or step==(cfg.SOLVER.MAX_ITER-1):
                 save_ckpt(output_dir, args, step, train_size, model, optimizer)
-              if (args.test_train and ((step+1) % TEST_PERIOD == 0)) or (test_end and step==(cfg.SOLVER.MAX_ITER-1)):
+              if (args.test_train and ((step+1) % TEST_PERIOD == 0)) or (args.test_end and step==(cfg.SOLVER.MAX_ITER-1)):
                 val(model, output_dir, step, args.test_report_period, 'test')
             elif args.test_start and step == args.start_step:
               val(model, output_dir, step, args.test_report_period, 'test')

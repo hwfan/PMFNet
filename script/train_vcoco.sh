@@ -7,7 +7,7 @@ mkdir -p ./Outputs/logs/${EXP}
 CUDA_VISIBLE_DEVICES=$1 python -u tools/train_net_step.py --dataset vcoco_trainval \
        --cfg configs/baselines/$model_name.yaml \
        --net_name PGE \
-       --pan_iter 2 \
+       --pan_iter $2 \
        --use_precomp_box \
        --vcoco_use_union_feat --lr 4e-2 \
        --bs 4 --nw 8 --disp_interval 10 \
