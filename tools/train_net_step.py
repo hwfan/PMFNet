@@ -713,7 +713,7 @@ def val(model, root_dir, step, report_period, mode='val'):
     model.eval()
     # ids_back = model.device_ids
     # model.device_ids = [1]
-    model.output_device=1
+    # model.output_device=1
     output_dir = os.path.join(root_dir, mode)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -765,7 +765,7 @@ def val(model, root_dir, step, report_period, mode='val'):
             os.makedirs(output_dir_step)
         role_ap = task_evaluation.evaluate_hoi_vcoco(dataset, hoi_step, output_dir_step)
         role_ap_list.append(role_ap)
-    model.output_device=0
+    # model.output_device=0
     # model.device_ids = ids_back
     model.train()
 
