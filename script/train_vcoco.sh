@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 model_name="e2e_pmf_net_R-50-FPN_1x"
-EXP="PGE"
+EXP=$3
 mkdir -p ./Outputs/logs/${EXP}
 
 CUDA_VISIBLE_DEVICES=$1 python -u tools/train_net_step.py --dataset vcoco_trainval \
