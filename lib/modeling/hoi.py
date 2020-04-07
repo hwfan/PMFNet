@@ -62,17 +62,17 @@ class PGE(nn.Module):
             current_fc_weight=Parameter(torch.FloatTensor(self.PAN_intrinsic_num, self.PAN_intrinsic_num))
           current_fc_bias=Parameter(torch.FloatTensor(self.PAN_intrinsic_num).unsqueeze(0).unsqueeze(0))
           self.PAN_fcs.append((current_fc_weight,current_fc_bias))
-        self.pose_fc1 = nn.Linear(1024, 1024)#nn.Linear((self.part_num+1) * 258 * self.crop_size ** 2, 1024)
-        self.pose_fc2 = nn.Linear(1024, hidden_dim*2)
+        self.pose_fc1 = nn.Linear(self.part_num*self.PAN_intrinsic_num, self.PAN_intrinsic_num)#nn.Linear((self.part_num+1) * 258 * self.crop_size ** 2, 1024)
+        self.pose_fc2 = nn.Linear(self.PAN_intrinsic_num, hidden_dim*2)
         interaction_fc1_dim_in += hidden_dim*2
 
         
         
         ## semantic attention
         self.mlp = nn.Sequential(
-            nn.Linear(3*64*64, 1024),
+            nn.Linear(3*64*64, 64),
             nn.ReLU(),
-            nn.Linear(1024, 1024)
+            nn.Linear(64, self.part_num)
         )
 
         self.pose_fc3 = nn.Linear(3 * cfg.KRCNN.HEATMAP_SIZE ** 2, 512)
@@ -203,7 +203,7 @@ class PGE(nn.Module):
           x_pose = torch.matmul(x_pose, adj)
           x_pose = torch.transpose(x_pose, 1, 2)
           x_pose = F.relu(x_pose, inplace=True)
-        x_pose = torch.mean(x_pose,dim=1)
+        # x_pose = torch.mean(x_pose,dim=1)
           
           
         # x_object2 = x_object2.unsqueeze(dim=1) # batch_objects*1*258*5*5
@@ -214,8 +214,8 @@ class PGE(nn.Module):
         # x_object2[:,:,-2:] = x_object2[:,:, -2:] - center_xy # normalize coord map with object centre for object patches.
         # x_pose = torch.cat((x_pose, x_object2), dim=1) # batch_unions*18*258*5*5
 
-        semantic_atten = self.mlp(poseconfig) # batch_unions*1024
-        
+        semantic_atten = self.mlp(poseconfig) # batch_unions*17
+        semantic_atten = semantic_atten.unsqueeze(-1)
         # semantic_atten = semantic_atten.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1) # batch_unions*17*1*1*1
         # atten_shape = list(tuple(semantic_atten.shape))
         # atten_shape[1] = 1
