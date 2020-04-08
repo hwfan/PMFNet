@@ -214,7 +214,7 @@ class PGE(nn.Module):
         # x_object2[:,:,-2:] = x_object2[:,:, -2:] - center_xy # normalize coord map with object centre for object patches.
         # x_pose = torch.cat((x_pose, x_object2), dim=1) # batch_unions*18*258*5*5
 
-        semantic_atten = self.mlp(poseconfig) # batch_unions*17
+        semantic_atten = F.sigmoid(self.mlp(poseconfig)) # batch_unions*17
         semantic_atten = semantic_atten.unsqueeze(-1)
         # semantic_atten = semantic_atten.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1) # batch_unions*17*1*1*1
         # atten_shape = list(tuple(semantic_atten.shape))
