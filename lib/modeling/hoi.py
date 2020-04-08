@@ -57,11 +57,15 @@ class PGE(nn.Module):
         self.PAN_fcs = []
         for each_iter in range(self.PAN_iter):
           if each_iter == 0:
-            current_fc_weight=Parameter(torch.FloatTensor(self.PAN_first_num, self.PAN_intrinsic_num))
+            current_fc = nn.Linear(self.PAN_first_num, self.PAN_intrinsic_num)
+            # current_fc_weight=Parameter(torch.FloatTensor(self.PAN_first_num, self.PAN_intrinsic_num))
           else:
-            current_fc_weight=Parameter(torch.FloatTensor(self.PAN_intrinsic_num, self.PAN_intrinsic_num))
-          current_fc_bias=Parameter(torch.FloatTensor(self.PAN_intrinsic_num).unsqueeze(0).unsqueeze(0))
-          self.PAN_fcs.append((current_fc_weight,current_fc_bias))
+            current_fc = nn.Linear(self.PAN_intrinsic_num, self.PAN_intrinsic_num)
+            # current_fc_weight=Parameter(torch.FloatTensor(self.PAN_intrinsic_num, self.PAN_intrinsic_num))
+          # current_fc_bias=Parameter(torch.FloatTensor(self.PAN_intrinsic_num).unsqueeze(0).unsqueeze(0))
+          # self.PAN_fcs.append((current_fc_weight,current_fc_bias))
+          self.PAN_fcs.append(current_fc)
+        self.PAN_fcs = nn.ModuleList(self.PAN_fcs)
         self.pose_fc1 = nn.Linear(self.part_num*self.PAN_intrinsic_num, self.PAN_intrinsic_num)#nn.Linear((self.part_num+1) * 258 * self.crop_size ** 2, 1024)
         self.pose_fc2 = nn.Linear(self.PAN_intrinsic_num, hidden_dim*2)
         interaction_fc1_dim_in += hidden_dim*2
@@ -190,15 +194,23 @@ class PGE(nn.Module):
         
         # x_pose = torch.cat((x_pose, x_coords), dim=2) 
         x_pose = x_pose[interaction_human_inds] # batch_unions*17*258*5*5
-        x_pose = x_pose.view(x_pose.shape[0],x_pose.shape[1],-1) # flatten node features, batch_unions*17*6450
+        batch_length = x_pose.shape[0]
+        x_pose = x_pose.contiguous().view(batch_length,x_pose.shape[1],-1) # flatten node features, batch_unions*17*6450
+        adj = torch.from_numpy(self.adj).cuda(device_id)
         for each_iter in range(self.PAN_iter):
           # ipdb.set_trace()
-          current_fc_weight, current_fc_bias = self.PAN_fcs[each_iter]
-          current_fc_weight = current_fc_weight.cuda(device_id)
-          current_fc_bias = current_fc_bias.cuda(device_id)
-          adj = torch.from_numpy(self.adj).cuda(device_id)
-          x_pose = torch.matmul(x_pose, current_fc_weight)
-          x_pose = x_pose + current_fc_bias
+          # current_fc_weight, current_fc_bias = self.PAN_fcs[each_iter]
+          # current_fc_weight = current_fc_weight.cuda(device_id)
+          # current_fc_bias = current_fc_bias.cuda(device_id)
+          
+          # x_pose = torch.matmul(x_pose, current_fc_weight)
+          # x_pose = x_pose + current_fc_bias
+          if each_iter == 0:
+            x_pose = x_pose.contiguous().view(-1, self.PAN_first_num)
+          else:
+            x_pose = x_pose.contiguous().view(-1, self.PAN_intrinsic_num)
+          x_pose = self.PAN_fcs[each_iter](x_pose)
+          x_pose = x_pose.view(batch_length, self.part_num, -1)
           x_pose = torch.transpose(x_pose, 1, 2)
           x_pose = torch.matmul(x_pose, adj)
           x_pose = torch.transpose(x_pose, 1, 2)

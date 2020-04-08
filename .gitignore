@@ -10,7 +10,8 @@ cache/*
 notebooks/*.pkl
 
 /Outputs
-
+mat_draw.py
+stat.py
 # ------------------------------
 
 .vscode/*

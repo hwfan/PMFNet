@@ -598,7 +598,7 @@ def main():
 
 
 def train_val(model, args, optimizer, lr, dataloader, train_size, output_dir, tblogger=None):
-
+    print(model.state_dict().keys())
     dataiterator = iter(dataloader)
     model.train()
 

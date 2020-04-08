@@ -1017,6 +1017,7 @@ __C.VCOCO.TEST_HUMAN_SCORE_THRESH = 0.5
 __C.VCOCO.TEST_TARGET_OBJECT_SCORE_THRESH = 0.4
 
 __C.PGE = AttrDict()
+__C.PGE.PAN_ITER = 2
 # ---------------------------------------------------------------------------- #
 # GroupNorm options
 # ---------------------------------------------------------------------------- #
