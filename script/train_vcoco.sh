@@ -13,7 +13,7 @@ CUDA_VISIBLE_DEVICES=$1 python -u tools/train_net_step.py --dataset vcoco_trainv
        --bs 4 --nw 8 --disp_interval 10 \
        --freeze_at 5 --mlp_head_dim 256 \
        --part_crop_size 5 --use_kps17 \
-       --max_iter 12000 --solver_steps 0 6000 8000 \
+       --max_iter 8000 --solver_steps 0 6000 8000 \
        --test_end \
        --triplets_num_per_im 32 \
        --expID ${EXP} \

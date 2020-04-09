@@ -168,25 +168,25 @@ def test_net_on_dataset(
     dataset = JsonDataset(dataset_name)
     test_timer = Timer()
     test_timer.tic()
-    if not os.path.exists(det_file):
-      if multi_gpu:
+    # if not os.path.exists(det_file):
+    if multi_gpu:
         num_images = len(dataset.get_roidb())
         all_boxes, all_segms, all_keyps, all_hois, all_keyps_vcoco, all_losses = multi_gpu_test_net_on_dataset(
             args, dataset_name, proposal_file, num_images, output_dir
         )
-      else:
+    else:
         all_boxes, all_segms, all_keyps, all_hois, all_keyps_vcoco, all_losses = test_net(
             args, dataset_name, proposal_file, output_dir, gpu_id=gpu_id
         )
-    else:
-      with open(det_file, 'rb') as f:
-        det = pickle.load(f)
-        all_boxes=det['all_boxes']
-        all_segms=det['all_segms']
-        all_keyps=det['all_keyps']
-        all_hois=det['all_hois']
-        all_keyps_vcoco=det['all_keyps_vcoco']
-        all_losses=det['all_losses']
+    # else:
+      # with open(det_file, 'rb') as f:
+        # det = pickle.load(f)
+        # all_boxes=det['all_boxes']
+        # all_segms=det['all_segms']
+        # all_keyps=det['all_keyps']
+        # all_hois=det['all_hois']
+        # all_keyps_vcoco=det['all_keyps_vcoco']
+        # all_losses=det['all_losses']
     test_timer.toc()
     logger.info('Total inference time: {:.3f}s'.format(test_timer.average_time))
 
