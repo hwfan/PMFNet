@@ -9,5 +9,5 @@ CUDA_VISIBLE_DEVICES=$1 python -u tools/test_net.py --dataset vcoco_test \
         --use_precomp_box \
         --mlp_head_dim 256 \
         --part_crop_size 5 --use_kps17 \
-        --net_name $4 \
+        --net_name PGE \
         --load_ckpt $2 |tee ./Outputs/logs/${EXP}/test-log.out
